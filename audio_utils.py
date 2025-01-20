@@ -19,8 +19,8 @@ class WarningPlayer:
     def play_warning(self, class_names, color=None, clothing_class_name=None):
         current_time = time.time()
 
-        # 마지막 경고로부터 30초가 지나지 않았다면 새로운 경고를 무시
-        if self.last_warning_time and current_time - self.last_warning_time < 30:
+        # 마지막 경고로부터 20초가 지나지 않았다면 새로운 경고를 무시 # 대신 경고 멘트 20초 이하이어야 함
+        if self.last_warning_time and current_time - self.last_warning_time < 20:
             return
 
         self.last_warning_time = current_time  # 경고 시간 갱신
