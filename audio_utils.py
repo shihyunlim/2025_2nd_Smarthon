@@ -32,12 +32,12 @@ class WarningPlayer:
         # f"{', '.join(class_names)} 객체가 탐지되었습니다. "
         if color and clothing_type:
             warning_text = (
-                f"{color} {clothing_type}을 입은 분! 이곳에서 담배를 피시면 안됩니다. 다시 한 번 알려드립니다. "
-                f"{color} {clothing_type}을 입은 분! 이곳에서 담배를 피시면 안됩니다."
+                f"{color} {clothing_type}을 입은 분! 이곳에서 담배를 피면 안됩니다. 다시 한 번 알려드립니다. "
+                f"{color} {clothing_type}을 입은 분! 이곳에서 담배를 피면 안됩니다."
             )
         else:
             warning_text = (
-                "이곳에서 담배를 피시면 안됩니다. 다시 한 번 알려드립니다. 이곳에서 담배를 피시면 안됩니다."
+                "이곳에서 담배를 피면 안됩니다. 다시 한 번 알려드립니다. 이곳에서 담배를 피면 안됩니다."
             )
 
         # 음성 파일 생성
