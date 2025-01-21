@@ -165,15 +165,15 @@ def main():
                     left_angle = calculate_angle(left_shoulder, left_elbow, left_wrist)
                     right_angle = calculate_angle(right_shoulder, right_elbow, right_wrist)
 
-                    if left_angle > 160:
+                    if left_angle > 130:
                         left_stage = "down"
-                    if left_angle < 30 and left_stage == "down":
+                    if left_angle < 50 and left_stage == "down":
                         left_stage = "up"
                         left_counter += 1
 
-                    if right_angle > 160:
+                    if right_angle > 130:
                         right_stage = "down"
-                    if right_angle < 30 and right_stage == "down":
+                    if right_angle < 50 and right_stage == "down":
                         right_stage = "up"
                         right_counter += 1
 
