@@ -9,19 +9,18 @@ from audio_utils import WarningPlayer
 # Mediapipe 설정
 mp_drawing = mp.solutions.drawing_utils
 mp_pose = mp.solutions.pose
+mp_hands = mp.solutions.hands  # 손 감지 추가
 
-# YOLO 모델 초기화
 def init_models():
-    face_cigar_model = YOLO("C:/Users/shihy/SmokeVision/models/face_cigar_1.pt")
-    smoke_vapepod_model = YOLO("C:/Users/shihy/SmokeVision/models/smoke_vapepod_1.pt")
-    clothing_model = YOLO("C:/Users/shihy/SmokeVision/models/clothing.pt")
+    face_cigar_model = YOLO("C:\\Users\\방우영\\Downloads\\face_cigar_1.pt")
+    smoke_vapepod_model = YOLO("C:\\Users\\방우영\\Downloads\\smoke_vapepod_1 (1).pt")
+    clothing_model = YOLO("C:\\Users\\방우영\\Downloads\\clothing.pt")
     return face_cigar_model, smoke_vapepod_model, clothing_model
 
-# 팔 각도 계산 함수
 def calculate_angle(a, b, c):
-    a = np.array(a)  # First
-    b = np.array(b)  # Middle
-    c = np.array(c)  # End
+    a = np.array(a)
+    b = np.array(b)
+    c = np.array(c)
     
     radians = np.arctan2(c[1]-b[1], c[0]-b[0]) - np.arctan2(a[1]-b[1], a[0]-b[0])
     angle = np.abs(radians * 180.0 / np.pi)
@@ -29,22 +28,45 @@ def calculate_angle(a, b, c):
         angle = 360 - angle
     return angle
 
-# 메인 함수
+def check_cigarette_in_hand(cigar_box, hand_landmarks, frame_shape):
+    """
+    담배와 손의 거리를 확인하는 함수
+    """
+    if hand_landmarks is None:
+        return False
+    
+    # 담배 박스의 중심점 계산
+    cigar_center_x = (cigar_box[0] + cigar_box[2]) / 2
+    cigar_center_y = (cigar_box[1] + cigar_box[3]) / 2
+    
+    # 손가락 끝점들의 위치 확인
+    height, width = frame_shape[:2]
+    for hand_lm in hand_landmarks.landmark:
+        hand_x = hand_lm.x * width
+        hand_y = hand_lm.y * height
+        
+        # 담배와 손 사이의 거리 계산
+        distance = np.sqrt((cigar_center_x - hand_x)**2 + (cigar_center_y - hand_y)**2)
+        
+        # 일정 거리 이내에 있으면 손에 쥐고 있다고 판단
+        if distance < 50:  # 픽셀 단위, 필요에 따라 조정
+            return True
+            
+    return False
+
 def main():
-    # YOLO 초기화
     face_cigar_model, smoke_vapepod_model, clothing_model = init_models()
     warning_player = WarningPlayer()
 
-    # Mediapipe Pose 초기화
+    # Mediapipe Pose와 Hands 초기화
     pose = mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+    hands = mp_hands.Hands(min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
-    # 팔 굽힘 카운트 변수
     left_counter = 0
     right_counter = 0
     left_stage = None
     right_stage = None
 
-    # Mediapipe에서 사용할 랜드마크 연결
     arm_connections = [
         (mp_pose.PoseLandmark.LEFT_SHOULDER, mp_pose.PoseLandmark.LEFT_ELBOW),
         (mp_pose.PoseLandmark.LEFT_ELBOW, mp_pose.PoseLandmark.LEFT_WRIST),
@@ -52,7 +74,6 @@ def main():
         (mp_pose.PoseLandmark.RIGHT_ELBOW, mp_pose.PoseLandmark.RIGHT_WRIST)
     ]
 
-    # 웹캠 열기
     capture = cv2.VideoCapture(0)
     time.sleep(2)
     if not capture.isOpened():
@@ -66,23 +87,56 @@ def main():
                 print("영상 캡처 실패")
                 break
 
-            # YOLO로 객체 탐지
+            # YOLO 객체 탐지
             results_face_cigar = face_cigar_model(frame)
+            results_smoke_vapepod = smoke_vapepod_model(frame)
+            results_clothing = clothing_model(frame)
+            
             cigar_detected = False
             person_detected = False
             detected_class_names = []
+            cigar_boxes = []
 
             for result in results_face_cigar:
                 for box in result.boxes:
                     class_name = result.names[int(box.cls)]
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    
                     if class_name == "cigarette":
-                        cigar_detected = True
+                        cigar_boxes.append([x1, y1, x2, y2])
                         detected_class_names.append(class_name)
                     elif class_name == "face":
                         person_detected = True
                         detected_class_names.append(class_name)
+                        
+            # 전자담배 탐지
+            for result in results_smoke_vapepod:
+                for box in result.boxes:
+                    class_name = result.names[int(box.cls)]
+                    if class_name == "vapepod":
+                        cigar_detected = True
+                        detected_class_names.append(class_name)
+                    elif class_name == "smoke":
+                        detected_class_names.append(class_name)
 
-            # Mediapipe Pose로 팔 동작 확인
+            # Mediapipe Hands 처리
+            image_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            hands_results = hands.process(image_rgb)
+
+            # 담배가 손에 있는지 확인
+            if cigar_boxes and hands_results.multi_hand_landmarks:
+                for cigar_box in cigar_boxes:
+                    cigar_detected = False  # 초기화
+                    for hand_landmarks in hands_results.multi_hand_landmarks:
+                        if check_cigarette_in_hand(cigar_box, hand_landmarks, frame.shape):
+                            cigar_detected = True
+                            break
+                    if not cigar_detected:
+                        print("손과 담배 거리가 멉니다.")  # 손과 담배의 거리가 멀 경우 출력
+                    if cigar_detected:
+                        break
+
+            # Mediapipe Pose 처리
             image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
             image.flags.writeable = False
             results = pose.process(image)
@@ -95,55 +149,50 @@ def main():
                 try:
                     # 왼쪽 팔 랜드마크 추출
                     left_shoulder = [landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].x,
-                                     landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
+                                   landmarks[mp_pose.PoseLandmark.LEFT_SHOULDER.value].y]
                     left_elbow = [landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].x,
-                                  landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
+                                 landmarks[mp_pose.PoseLandmark.LEFT_ELBOW.value].y]
                     left_wrist = [landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].x,
-                                  landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
+                                 landmarks[mp_pose.PoseLandmark.LEFT_WRIST.value].y]
 
-                    # 오른쪽 팔 랜드마크 추출
                     right_shoulder = [landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].x,
-                                      landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
+                                    landmarks[mp_pose.PoseLandmark.RIGHT_SHOULDER.value].y]
                     right_elbow = [landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].x,
-                                   landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].y]
+                                 landmarks[mp_pose.PoseLandmark.RIGHT_ELBOW.value].y]
                     right_wrist = [landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].x,
-                                   landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y]
+                                 landmarks[mp_pose.PoseLandmark.RIGHT_WRIST.value].y]
 
-                    # 각도 계산
                     left_angle = calculate_angle(left_shoulder, left_elbow, left_wrist)
                     right_angle = calculate_angle(right_shoulder, right_elbow, right_wrist)
 
-                    # 왼쪽 팔 동작 감지
                     if left_angle > 160:
                         left_stage = "down"
                     if left_angle < 30 and left_stage == "down":
                         left_stage = "up"
                         left_counter += 1
 
-                    # 오른쪽 팔 동작 감지
                     if right_angle > 160:
                         right_stage = "down"
                     if right_angle < 30 and right_stage == "down":
                         right_stage = "up"
                         right_counter += 1
 
-                    # 각도와 카운트 표시
                     cv2.putText(image, f"Left Angle: {int(left_angle)}",
-                                tuple(np.multiply(left_elbow, [640, 480]).astype(int)),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                              tuple(np.multiply(left_elbow, [640, 480]).astype(int)),
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
                     cv2.putText(image, f"Right Angle: {int(right_angle)}",
-                                tuple(np.multiply(right_elbow, [640, 480]).astype(int)),
-                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
+                              tuple(np.multiply(right_elbow, [640, 480]).astype(int)),
+                              cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 2, cv2.LINE_AA)
                     cv2.putText(image, f"Left Reps: {left_counter}",
-                                (10, 60),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                              (10, 60),
+                              cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
                     cv2.putText(image, f"Right Reps: {right_counter}",
-                                (10, 100),
-                                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+                              (10, 100),
+                              cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
                 except:
                     pass
 
-                # Mediapipe에서 팔 랜드마크와 연결선만 표시
+                # 팔 랜드마크 시각화
                 for connection in arm_connections:
                     start_idx = connection[0].value
                     end_idx = connection[1].value
@@ -151,26 +200,60 @@ def main():
                     end_landmark = landmarks[end_idx]
                     start_point = tuple(np.multiply([start_landmark.x, start_landmark.y], [640, 480]).astype(int))
                     end_point = tuple(np.multiply([end_landmark.x, end_landmark.y], [640, 480]).astype(int))
-                    cv2.line(image, start_point, end_point, (0, 255, 0), 2)  # 연결선
-                    cv2.circle(image, start_point, 4, (0, 0, 255), -1)  # 시작점
-                    cv2.circle(image, end_point, 4, (0, 0, 255), -1)  # 끝점
+                    cv2.line(image, start_point, end_point, (0, 255, 0), 2)
+                    cv2.circle(image, start_point, 4, (0, 0, 255), -1)
+                    cv2.circle(image, end_point, 4, (0, 0, 255), -1)
 
-            # 경고 조건: 담배 + 사람 + 왼쪽 또는 오른쪽 팔 동작
+            
+            # 담배를 손에 들고 있을 때만 경고
+            # 담배와 사람이 모두 탐지되고 팔 동작 조건 만족 시 경고
             if cigar_detected and person_detected and (left_counter >= 2 or right_counter >= 2):
                 print("담배를 피우고 있음!")
-                warning_player.play_warning(detected_class_names)
-                left_counter = 0  # 경고 후 카운트 초기화
+                # 옷 탐지 및 색상 추출
+                clothing_detected = False
+                clothing_color = None
+                clothing_class_name = None
+                for result in results_clothing:
+                    for box in result.boxes:
+                        class_id = int(box.cls)
+                        class_name = result.names[class_id]
+
+                        if class_name in [
+                            "short_sleeved_shirt", "long_sleeved_shirt", "short_sleeved_outwear", 
+                            "long_sleeved_outwear", "vest", "sling", "shorts", "trousers", 
+                            "skirt", "short_sleeved_dress", "long_sleeved_dress", "vest_dress", "sling_dress"
+                        ]:
+                            clothing_color = extract_color(frame, box.xyxy[0])  # 옷 색상 추출
+                            clothing_class_name = class_name
+                            clothing_detected = True
+                            break
+                    if clothing_detected:
+                        break
+                
+                # 경고 음성 출력
+                if clothing_detected and clothing_color:
+                    warning_player.play_warning(detected_class_names, clothing_color, clothing_class_name)
+                else:
+                    warning_player.play_warning(detected_class_names)
+                left_counter = 0
                 right_counter = 0
 
-            # YOLO 탐지 결과 시각화
+            # 시각화
             rendered_frame = results_face_cigar[0].plot()
             combined_frame = cv2.addWeighted(rendered_frame, 0.6, image, 0.4, 0)
-            cv2.imshow("Cigarette and Pose Detection", combined_frame)
+            
+            # 손 랜드마크 시각화
+            if hands_results.multi_hand_landmarks:
+                for hand_landmarks in hands_results.multi_hand_landmarks:
+                    mp_drawing.draw_landmarks(combined_frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
 
-            # 'q' 키를 누르면 종료
-            if cv2.waitKey(10) & 0xFF == ord('q'):
+            cv2.imshow("Frame", combined_frame)
+
+            # 'q' 키로 종료
+            if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-
+    except Exception as e:
+        print(f"에러 발생: {e}")
     finally:
         capture.release()
         cv2.destroyAllWindows()
