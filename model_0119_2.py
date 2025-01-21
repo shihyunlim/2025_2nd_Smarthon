@@ -6,9 +6,9 @@ from audio_utils import WarningPlayer
 
 # YOLO 모델 초기화
 def init_models():
-    face_cigar_model = YOLO("C:/Users/shihy/SmokeVision/models/face_cigar_1.pt")
-    smoke_vapepod_model = YOLO("C:/Users/shihy/SmokeVision/models/smoke_vapepod_1.pt")
-    clothing_model = YOLO("C:/Users/shihy/SmokeVision/models/clothing.pt")
+    face_cigar_model = YOLO("C:/Users/zstep/Documents/pubao6/2025_2nd_Smarthon/models/face_cigar_1.pt")
+    smoke_vapepod_model = YOLO("C:/Users/zstep/Documents/pubao6/2025_2nd_Smarthon/models/smoke_vapepod_1.pt")
+    clothing_model = YOLO("C:/Users/zstep/Documents/pubao6/2025_2nd_Smarthon/models/clothing.pt")
     return face_cigar_model, smoke_vapepod_model, clothing_model
 
 # 메인 함수
