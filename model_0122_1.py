@@ -204,38 +204,37 @@ def main():
                     cv2.circle(image, start_point, 4, (0, 0, 255), -1)
                     cv2.circle(image, end_point, 4, (0, 0, 255), -1)
 
-            # 옷 탐지 및 색상 추출
-            clothing_detected = False
-            clothing_color = None
-            clothing_class_name = None
-            for result in results_clothing:
-                for box in result.boxes:
-                    class_id = int(box.cls)
-                    class_name = result.names[class_id]
-
-                    if class_name in [
-                        "short_sleeved_shirt", "long_sleeved_shirt", "short_sleeved_outwear", 
-                        "long_sleeved_outwear", "vest", "sling", "shorts", "trousers", 
-                        "skirt", "short_sleeved_dress", "long_sleeved_dress", "vest_dress", "sling_dress"
-                    ]:
-                        clothing_color = extract_color(frame, box.xyxy[0])  # 옷 색상 추출
-                        clothing_class_name = class_name
-                        clothing_detected = True
-                        break
-                if clothing_detected:
-                    break
-
-            # 경고 음성 출력
-            if clothing_detected and clothing_color:
-                warning_player.play_warning(detected_class_names, clothing_color, clothing_class_name)
-            else:
-                warning_player.play_warning(detected_class_names)
-
+            
             # 담배를 손에 들고 있을 때만 경고
             # 담배와 사람이 모두 탐지되고 팔 동작 조건 만족 시 경고
             if cigar_detected and person_detected and (left_counter >= 2 or right_counter >= 2):
                 print("담배를 피우고 있음!")
-                warning_player.play_warning(detected_class_names)
+                # 옷 탐지 및 색상 추출
+                clothing_detected = False
+                clothing_color = None
+                clothing_class_name = None
+                for result in results_clothing:
+                    for box in result.boxes:
+                        class_id = int(box.cls)
+                        class_name = result.names[class_id]
+
+                        if class_name in [
+                            "short_sleeved_shirt", "long_sleeved_shirt", "short_sleeved_outwear", 
+                            "long_sleeved_outwear", "vest", "sling", "shorts", "trousers", 
+                            "skirt", "short_sleeved_dress", "long_sleeved_dress", "vest_dress", "sling_dress"
+                        ]:
+                            clothing_color = extract_color(frame, box.xyxy[0])  # 옷 색상 추출
+                            clothing_class_name = class_name
+                            clothing_detected = True
+                            break
+                    if clothing_detected:
+                        break
+                
+                # 경고 음성 출력
+                if clothing_detected and clothing_color:
+                    warning_player.play_warning(detected_class_names, clothing_color, clothing_class_name)
+                else:
+                    warning_player.play_warning(detected_class_names)
                 left_counter = 0
                 right_counter = 0
 
