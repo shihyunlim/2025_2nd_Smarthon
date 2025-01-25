@@ -1,0 +1,9 @@
+pip install python=3.12
+
+pip install ultralytics
+
+pip install gtts
+
+pip install fastapi
+
+pip install "uvicorn[standard]"
