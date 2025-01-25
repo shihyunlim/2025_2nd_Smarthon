@@ -25,3 +25,13 @@
      - Cigarette detected near the hand.
      - Arm bending movements confirm smoking gestures.
 
+## 실행 방법
+1. 클론/다운로드 후 `requirements.txt` 안에 적힌 라이브러리를 모두 설치해주세요. 생략된 라이브러리가 있을 수 있으니 터미널에서 발생하는 메시지를 따라 추가 설치해주세요.
+2. FastAPI 서버 실행
+   ```
+   uvicorn app:app --reload
+   ```
+3. 브라우저에서 접속
+   ```
+   <http://127.0.0.1:8000>
+   ```
